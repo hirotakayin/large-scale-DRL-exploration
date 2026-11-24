@@ -1,5 +1,7 @@
-# saving path
-FOLDER_NAME = 'ariadne1_ground_truth_critic'
+import os
+
+# saving path (FOLDER_NAME from the environment lets run_train.sh name each run)
+FOLDER_NAME = os.environ.get('FOLDER_NAME', 'ariadne1_ground_truth_critic')
 model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'

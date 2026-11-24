@@ -1,0 +1,3 @@
+# only requirements.txt is needed to build; keep training outputs and git out of the build context
+*
+!requirements.txt
