@@ -1,0 +1,7 @@
+# training outputs: never commit (back them up to ~/rl/runs/<date>_<name>/ instead)
+__pycache__/
+model/
+train/
+gifs/
+*.log
+ray_results/
