@@ -292,7 +292,7 @@ def main():
 
             # save the model
             if curr_episode % 32 == 0:
-                print('Saving model', end='\n')
+                print("Saving model at episode {}".format(curr_episode), flush=True)
                 checkpoint = {"policy_model": global_policy_net.state_dict(),
                               "q_net1_model": global_q_net1.state_dict(),
                               "q_net2_model": global_q_net2.state_dict(),
