@@ -1,2 +1,0 @@
-# Lets USER start and stop the CMU VPN tunnel without a password, through the fixed-argument wrapper only.
-USER ALL=(root) NOPASSWD: /usr/local/sbin/cmu-vpn
