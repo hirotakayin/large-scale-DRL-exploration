@@ -130,13 +130,35 @@ Held-out set, 20 worlds:
 | Greedy column explorer | 20 / 20 | 256 / 283 / 370 (19) | 595 |
 
 - Stage 1 reaches 95 % sooner than stock on 12 of 20 worlds, sooner than greedy on 1 of 20.
-- 8 of the 11 unfinished Stage 1 episodes had seen 99.5 % or more and kept wandering. img_361_s9000 stalls at 88.6 %.
+- All 11 unfinished Stage 1 episodes end in a two-stop loop (8 of them after seeing 99.5 % or more). img_361_s9000 stalls at 88.6 %.
 - Training: success rate 42 -> 91 %, travel per episode 901 -> 678 m, reward flat after about episode 1000.
 - The critic diverges: Q loss 2.3 -> 229, critic gradient norm about 400 -> 114,000, log alpha -3.0 -> -6.0, all still
   trending at the end.
 
 Before Stage 2: stabilise the critic (gradient clipping, reward scale, slower critic or fixed alpha) and rerun Stage 1;
 look into the finish condition (unfinished episodes at 99.5 %+); beat greedy before learning a height choice.
+
+Follow-up (2026-11-25), why episodes do not finish:
+- Every unfinished episode (Stage 1 and stock) ends flipping between two stops until the 128-step limit. At the loop no
+  neighbouring column has utility; what is left is 12-120 m away by route. The policy only picks neighbours, and its 6
+  encoder layers attend along graph edges (about 6 hops), so far utility barely reaches the neighbours' features; the
+  leftover utility is also tiny (2-3 cells). 332_s9006: the one neighbour with utility was the column just left
+  (visited, its other height now shows 2.2) and the policy ignores it.
+- The leftovers on the "100 % volume" worlds are frontier cells next to never-seen solid (floor, ceiling and corner
+  patches missed at grazing angles): no volume to gain, some surface. img_1471: 0 of 402,274 explorable voxels unknown;
+  1002 of 72,233 surface voxels unseen.
+- check_env3d.py --fallback: when no neighbour has utility or the policy turns back to the previous stop, take the first
+  hop of the route to the greedy explorer's target. Held-out, 20 worlds (outputs ~/rl/stage1/eval_fb/):
+
+| Planner | Finished | Median m to 95 % / 99 % volume | Mean route m | Steps overridden |
+|---|---|---|---|---|
+| Stage 1 + fallback | 20 / 20 | 304 / 390 | 661 | 29 % |
+| Stock + fallback | 18 / 20 | 311 / 392 | 698 | 30 % |
+| Greedy column explorer | 20 / 20 | 283 / 370 | 595 | - |
+
+  Stage 1 + fallback beats stock + fallback on 14 of 20 routes, greedy on 1.
+- Next: rerun Stage 1 with GAMMA 0.99 (GAMMA 1 with episodes cut at 128 steps and not marked done lets the critic's
+  value fall without bound in loops: value +5 -> -244). Keep the critic's clip at 20000 so the effect is GAMMA's alone.
 
 ## Stage 2: a learned height choice
 

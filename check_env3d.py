@@ -41,12 +41,20 @@ def run(a):
     torch.manual_seed(0)
     np.random.seed(0)
 
+    fallbacks = []  # per episode: steps where --fallback overrode the policy
+
     if not a.sample:
         def greedy(self, observation):
             _, _, _, _, current_edge, _ = observation
             with torch.no_grad():
                 logp = self.policy_net(*observation)
             action_index = torch.argmax(logp, dim=1).long()
+            if a.fallback and ENV_DIM == 3:
+                k = _fallback(self, current_edge, action_index.item())
+                if k is not None:
+                    fallbacks.append(len(self.fallback_hist))
+                    action_index = torch.tensor([k])
+                self.fallback_hist.append(tuple(self.node_coords[self.current_index]))
             return self.node_coords[current_edge[0, action_index.item(), 0].item()], action_index
         W.Agent.select_next_waypoint = greedy
 
@@ -59,6 +67,8 @@ def run(a):
             W.Env = (lambda path: (lambda idx, plot=False: _env2d(path, idx, plot)))(item)
         tic = time.time()
         wk = W.Worker(0, net, 0, save_image=a.gif)
+        wk.robot.fallback_hist = []
+        fallbacks.clear()
         env = wk.env
         fr, steps = [], []
         orig = env.calculate_reward
@@ -92,6 +102,8 @@ def run(a):
                    mean_utility=round(float(np.mean(utils)), 2) if utils else 0.0,
                    seconds=round(time.time() - tic, 1),
                    nodes=len(wk.robot.node_manager.nodes_dict))
+        if a.fallback:
+            rec['fallback_steps'] = len(fallbacks)
         c = np.array(curve)
         for q in (0.9, 0.95, 0.99):  # distance at which the (footprint, in 3D) explored share first reaches q
             hit = np.nonzero(c[:, 2] >= q)[0]
@@ -219,6 +231,43 @@ def replay(a):
         json.dump(out, f, indent=1)
 
 
+def _fallback(agent, current_edge, k):
+    """--fallback (3D): when no neighbouring column has utility, or the policy's choice is the stop it came from
+    (a two-stop loop), take the first hop of the route to the column the greedy explorer would pick (most utility
+    per metre of route). Returns the action index to use instead of k, or None to keep the policy's choice."""
+    from parameter import NODE_RESOLUTION
+    u = np.asarray(agent.utility, float)
+    if u.sum() <= 0:
+        return None
+    edges = [int(current_edge[0, i, 0].item()) for i in range(current_edge.shape[1])]
+    nbrs = [j for j in agent.neighbor_indices if j != agent.current_index]
+    hist = agent.fallback_hist
+    back = len(hist) >= 1 and tuple(agent.node_coords[edges[k]]) == hist[-1]
+    if any(u[j] > 0 for j in nbrs) and not back:
+        return None
+    nm = agent.node_manager
+    kept = [nm.nodes_dict.find(c.tolist()).data.kept for c in agent.node_coords]
+    d = nm.dist[kept]
+    score = np.where(u > 0, u / (d + NODE_RESOLUTION), -1)
+    score[agent.current_index] = -1
+    v = kept[int(np.argmax(score))]
+    hops = []
+    while v != nm.here and v >= 0:
+        hops.append(v)
+        v = nm.pred[v]
+    here_col = nm.lat.col[nm.here]
+    first = next((h for h in reversed(hops) if nm.lat.col[h] != here_col), None)
+    if first is None:
+        return None
+    col = nm.lat.col[first]
+    for i in range(len(edges)):
+        j = edges[i]
+        if j in nbrs and nm.nodes_dict.find(agent.node_coords[j].tolist()).data.kept >= 0 and \
+                nm.lat.col[nm.nodes_dict.find(agent.node_coords[j].tolist()).data.kept] == col:
+            return i
+    return None
+
+
 def greedy(a):
     from parameter import NODE_RESOLUTION
     from agent3d import Agent3D
@@ -289,6 +338,8 @@ if __name__ == '__main__':
     ap.add_argument('--compare', nargs='+')
     ap.add_argument('--replay', nargs='+', help='png world [png world ...]')
     ap.add_argument('--greedy', action='store_true')
+    ap.add_argument('--fallback', action='store_true', help='policy runs (3D): route to the greedy target when '
+                    'no neighbour has utility or the policy turns back (see _fallback)')
     ap.add_argument('--max-steps', type=int, default=300)
     a = ap.parse_args()
     if a.compare:
