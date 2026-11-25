@@ -36,15 +36,16 @@ class GroundTruthNodeManager:
         n_nodes = all_node_coords.shape[0]
         adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
         node_coords_to_check = all_node_coords[:, 0] + all_node_coords[:, 1] * 1j
+        index_of = {}  # first match, as np.argwhere
+        for i, c in enumerate(node_coords_to_check.tolist()):
+            index_of.setdefault(c, i)
         for i, coords in enumerate(all_node_coords):
             node = self.nodes_dict.find((coords[0], coords[1])).data
             utility.append(node.utility)
             explored_sign.append(node.explored)
             guidepost.append(node.visited)
             for neighbor in node.neighbor_set:
-                index = np.argwhere(node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
-                index = index[0][0]
-                adjacent_matrix[i, index] = 0
+                adjacent_matrix[i, index_of[neighbor[0] + neighbor[1] * 1j]] = 0
 
         utility = np.array(utility)
         explored_sign = np.array(explored_sign)
@@ -56,8 +57,7 @@ class GroundTruthNodeManager:
         neighbor_indices = []
         current_node_in_belief = self.node_manager.nodes_dict.find(robot_location.tolist()).data
         for neighbor in current_node_in_belief.neighbor_set:
-            index = np.argwhere(node_coords_to_check == neighbor[0] + neighbor[1] * 1j)[0][0]
-            neighbor_indices.append(index)
+            neighbor_indices.append(index_of[neighbor[0] + neighbor[1] * 1j])
         neighbor_indices = np.sort(np.array(neighbor_indices))
 
         self.ground_truth_node_coords = all_node_coords

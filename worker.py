@@ -1,10 +1,15 @@
 import torch
 
-from env import Env
-from agent import Agent
 from utils import *
 from model import PolicyNet
-from ground_truth_node_manager import GroundTruthNodeManager
+if ENV_DIM == 3:
+    from env3d import Env3D as Env
+    from agent3d import Agent3D as Agent
+    from ground_truth_node_manager3d import GroundTruthNodeManager3D as GroundTruthNodeManager
+else:
+    from env import Env
+    from agent import Agent
+    from ground_truth_node_manager import GroundTruthNodeManager
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
@@ -50,7 +55,10 @@ class Worker:
             assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location, self.robot.location, node.data.neighbor_set)
             assert next_location[0] != self.robot.location[0] or next_location[1] != self.robot.location[1]
 
-            reward = self.env.step(next_location)
+            if ENV_DIM == 3:
+                reward = self.env.step(*self.robot.route_to(next_location))
+            else:
+                reward = self.env.step(next_location)
 
             self.robot.update_planning_state(self.env.belief_info, self.env.robot_location)
             if self.robot.utility.sum() == 0:
@@ -75,6 +83,8 @@ class Worker:
         self.perf_metrics['travel_dist'] = self.env.travel_dist
         self.perf_metrics['explored_rate'] = self.env.explored_rate
         self.perf_metrics['success_rate'] = done
+        if ENV_DIM == 3:
+            self.perf_metrics['footprint_rate'] = self.env.footprint_rate
 
         # save gif
         if self.save_image:

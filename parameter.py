@@ -51,3 +51,22 @@ USE_GPU = False  # do you want to collect training data using GPUs (better not)
 USE_GPU_GLOBAL = True  # do you want to train the network using GPUs
 NUM_GPU = 0  # 0 unless you want to collect data using GPUs
 
+
+# 2D or 3D environment (docs/PLAN_3D.md). ENV_DIM=3 trains on ari3d worlds (voxel_world/scripts/make_ari3d.py):
+# env3d.py, agent3d.py, node_manager3d.py, ground_truth_node_manager3d.py. voxel_world/src must be on PYTHONPATH.
+ENV_DIM = int(os.environ.get('ENV_DIM', 2))
+WORLDS_3D = os.environ.get('WORLDS_3D', 'worlds')  # folder of ari3d worlds, one sub-folder with world.npz each
+Z_RESOLUTION = 1.6  # meter, between the lattice heights in a column (CELL_SIZE multiple)
+Z_NEIGHBOR = 2  # lattice edges reach this many heights up and down (and 2 columns sideways, as in 2D)
+ELEVATION_BAND = (-30.5, 75.5)  # deg from horizontal, the tilted Mid-360, every heading
+SENSOR_STEP_3D = 1.25  # deg between rays (azimuth thinned with elevation): about 0.35 m apart at 16 m
+CLEARANCE_3D = int(os.environ.get('CLEARANCE_3D', 1))  # voxels: free configuration space is this far from anything not known free
+FRONTIER_CELL_SIZE_3D = 4 * CELL_SIZE  # meter, 3D frontiers are downsampled on this grid
+FRONTIER_MIN_UNKNOWN_3D = 4  # a frontier voxel has this many unknown voxels among its 26 neighbours (2D: 2 of 8)
+DEAD_FRONTIER_VIEWS = 2  # a frontier voxel still there after scans from this many poses that had it in sight is dropped
+# 3D frontier counts are larger than 2D ones: these bring them to the 2D scale, so both still divide by
+# SENSOR_RANGE * 3.14 // FRONTIER_CELL_SIZE, and MIN_UTILITY applies to the scaled utility. Calibrated on flat
+# worlds (make_ari3d.py --flat), flying the 2D checkpoint's paths in both environments (check_env3d.py --replay):
+# 3D / 2D was 5.0-5.8 per node for utility and 3.6-4.0 for the frontier reward, on 4 maps.
+UTILITY_SCALE_3D = 0.18  # the policy's utility input (and the critic's)
+REWARD_SCALE_3D = 0.26  # frontier cells observed, in the reward

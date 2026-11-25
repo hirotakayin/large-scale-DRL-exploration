@@ -1,6 +1,6 @@
 # Plan: from ARiADNE 2D to a learned 3D exploration planner
 
-Status 2026-11-24: plan agreed; stage 0 in progress. Owner: the 3D_learning project
+Status 2026-11-24: stage 0 done (results below); stage 1 next. Owner: the 3D_learning project
 (see the workspace CLAUDE.md). Branch 3d-learning of this repo (training code) and of
 hirotakayin/CERLAB-UAV-Autonomy (`voxel_world/`: worlds, simulator, studies).
 
@@ -11,7 +11,8 @@ hirotakayin/CERLAB-UAV-Autonomy (`voxel_world/`: worlds, simulator, studies).
 | 3D training worlds from ARiADNE's map PNGs | `voxel_world/scripts/make_ari3d.py`, module `ari3d.py` | done. Terraced levels, staggered levels joined by shafts, split corridors (over/under loops), pits, low and lipped islands, hurdle/lintel gates; no single height reaches more than 60% of a world; every opening at least 3.2 m, checked with 0.5 m clearance; `accepted` flag in stats.json. Deterministic from (PNG, seed). Runs in this repo's Docker image. Cloned on cerlab22 at ~/rl/CERLAB-UAV-Autonomy |
 | Generating and previewing worlds from the GUI | hirotakayin/cerlab-uav-gui, Training tab | done. Calls make_ari3d.py and make_courses.py, shows previews and stats, and starts/stops training here over SSH |
 | Evaluation courses (open rooms, obstacles at every height) | `voxel_world/scripts/make_courses.py --layout room`, test seeds 0–99 | done |
-| A 3D exploration simulator (teleport between nodes, tilted Mid-360 band, 3D frontiers, utility, graphs) | `voxel_world/scripts/prune_study.py` (class `Sim`) | prototype, used for the pruning study, not wired into training |
+| A 3D exploration simulator (teleport between nodes, tilted Mid-360 band, 3D frontiers, utility, graphs) | `voxel_world/scripts/prune_study.py` (class `Sim`) | prototype, used for the pruning study; ported into this repo in stage 0 |
+| The 3D training environment | this repo: `env3d.py`, `agent3d.py`, `node_manager3d.py`, `ground_truth_node_manager3d.py`, `ENV_DIM` in `parameter.py`, `check_env3d.py` | done in stage 0, checked against 2D (see Stage 0 results) |
 | The one-node-per-column graph ("collapse") | `voxel_world/docs/column_graph.md` (read this first) | measured: graph at 2D size, about 9% extra distance against the full 3D lattice |
 | 2D ARiADNE training, Docker, run script | this repo | done. Stock run backed up in ~/rl/runs/2026-11-23_ariadne_stock |
 
@@ -43,6 +44,55 @@ Check:
   of sight to frontiers) is too slow, group frontiers on a coarser grid.
 
 Estimate: 1–1.5 days.
+
+## Stage 0 results (2026-11-24)
+
+How to run it: `ENV_DIM=3 WORLDS_3D=~/rl/worlds/<set> ./run_train.sh <run> [limit]` (mounts the worlds and
+~/rl/CERLAB-UAV-Autonomy/voxel_world read-only, `voxel_world/src` on PYTHONPATH). ENV_DIM unset = 2D as before.
+
+What was built, and where it differs from the prototype:
+- `env3d.py`: `Map3D` (belief voxels, free configuration space, frontiers) and `Env3D` (scan, reward, explored
+  share by volume and by footprint, a top-view GIF panel). The scan is 1.25° rays over the band (azimuths thinned
+  with elevation), about 0.35 m apart at 16 m. The drone's own clearance box counts as known: the band never sees
+  straight down.
+- Frontier voxel: known free, an unknown face neighbour, and 4–25 unknown voxels among its 26 neighbours (2D's
+  "2–7 of 8"). Without the 26-neighbour count, the solid edges where walls meet floors and ceilings (they touch free
+  space only along an edge, no ray reaches them) and single unseen surface voxels kept utility alive forever.
+- Dead frontiers: a frontier voxel still there after scans from 2 poses that had it in sight (within
+  UTILITY_RANGE, in the band, line of sight) no longer counts for utility (it still counts for the reward if it is
+  ever resolved). This is what lets 3D episodes end.
+- `node_manager3d.py`: the lattice (columns every 4 m, heights every 1.6 m through the start, edges up to 2 columns
+  and 2 heights apart, straight segment in free configuration space), routes by Dijkstra on it, utility per lattice
+  node, one kept node per column (most utility, else nearest the drone's height; the drone's column keeps the
+  drone's node). Columns are neighbours when a lattice edge joins them: at most 24, so K_SIZE stays 25. Nodes are
+  keyed by (x, y) like 2D nodes, so the 2D agent, worker, critic observation and network are used unchanged.
+- `ground_truth_node_manager3d.py`: the same column graph on the true map, cached per world.
+- Shared 2D code: `agent.py` and `ground_truth_node_manager.py` look up neighbour indices in a dict instead of
+  `np.argwhere` per neighbour. 2D results are bit-identical, about 30% faster per step.
+
+Checks (2D stock checkpoint at episode 1376, greedy actions; `check_env3d.py`; flat worlds from `make_ari3d.py
+--flat`, 12 PNGs not used for calibration, seeds 100–111):
+- Mechanics, without the policy in the loop (`--replay`: the 2D episode's columns flown in the 3D env): with
+  clearance 0 the 3D env reproduces 2D exactly: same columns, same neighbours (Jaccard 1.000), coverage within 0.3%
+  at every step, distance +1.1% (height changes). With the default clearance of one voxel, 2D columns that touch a
+  wall do not exist in 3D, so the replayed path breaks; that is the deliberate difference.
+- Calibration (on the same replays): 3D / 2D frontier reward 3.90 (3.73–4.14), utility per node 5.74 (4.98–7.86),
+  so `REWARD_SCALE_3D` = 0.26 and `UTILITY_SCALE_3D` = 0.18, set from 4 other maps (img_1609, 627, img_1315,
+  img_4537) before these 12 were run. MIN_UTILITY applies to the scaled utility.
+- Closed loop (the checkpoint choosing in each env, one-voxel clearance): distance to reach 90 / 95 / 99% of the
+  footprint 1.05 / 1.04 / 1.06 × 2D; frontier reward per episode 0.96 × 2D; final coverage 0.995 × 2D. Episodes end
+  in 7 of 12 in 3D, 9 of 12 in 2D: once the footprint is covered, 3D still has floor and ceiling strips that the band
+  missed (real 3D work), and the 2D policy shuttles instead of flying back for them.
+- Episodes end: a greedy explorer (most utility per metre, any column) finishes every world: 12/12 flat (30–64
+  steps) and 4/4 ari3d_v4 (72–93 steps, 99.7–100% of the volume). The 2D checkpoint finishes 1 of the 4 ari3d_v4
+  worlds within 128 steps (99.3–100% explored in all four); that is for training to fix.
+- Graph size on ari3d_v4: up to 206 columns (padding 360). Kept heights used 1–18 m.
+- Speed: 12-minute training runs from scratch on cerlab22, 16 workers, same code: 3D about 10.6 episodes/min
+  (24 ari3d worlds, `~/rl/worlds/speed_test`), 2D about 12.2, so 3D runs at 0.87 x 2D. A 3D step is 0.2–0.4 s on
+  one core (scan about 40%, graph and utility about 30%). Training ran end to end in 3D (critic, buffer, GIFs).
+
+Loose end: `make_ari3d.py` stops the whole batch when one PNG raises "start not in free configuration space"
+(seen with `--count 16 --seed 1000`); it should skip that PNG and go on.
 
 ## Stage 1: the 2.5D policy, a small training run
 
