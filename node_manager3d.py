@@ -14,6 +14,8 @@ Utility    of a lattice node: downsampled frontiers within UTILITY_RANGE, inside
            node, with line of sight through known free voxels (2D's check_collision: unknown blocks). At most
            MIN_UTILITY (after UTILITY_SCALE_3D) counts as 0; a visited lattice node keeps 0. Frontier voxels the
            sensor failed to resolve no longer count (env3d.Map3D.looked_from).
+           With LEFTOVER_M > 0 a column's utility also needs to beat MIN_UTILITY + route / LEFTOVER_M (route from
+           the drone, metres), applied to the column node only, so it comes back as the drone gets nearer.
 
 nodes_dict behaves like the 2D quad tree for what the agent, the worker and the ground-truth critic use:
 find((x, y)) -> item with .data (coords, utility, visited, neighbor_set), iteration, len().
@@ -232,6 +234,8 @@ class NodeManager3D:
             node.kept = int(self.kept[c])
             node.raw_utility = int(self.util[node.kept])
             node.utility = node.raw_utility * UTILITY_SCALE_3D
+            if LEFTOVER_M > 0 and node.utility <= MIN_UTILITY + self.dist[node.kept] / LEFTOVER_M:
+                node.raw_utility, node.utility = 0, 0  # far and small (parameter.py LEFTOVER_M); self.util keeps it
             node.height = float(lat.pos[node.kept, 2])
             node.gaps, node.free_height = int(gaps[c]), float(free_height[c])
             node.neighbor_set = {key}

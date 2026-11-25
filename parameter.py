@@ -80,5 +80,14 @@ HEIGHT_NORM_3D = 20.0  # meter
 GAPS_NORM_3D = 4.0
 if ENV_DIM == 3:
     NODE_INPUT_DIM += NODE_INPUTS_3D
+
+# stage 1b: far small leftovers stop counting. A column's utility (UTILITY_SCALE_3D applied) counts only above
+# MIN_UTILITY + route / LEFTOVER_M, route = metres from the drone on the lattice: 1 more frontier cell per LEFTOVER_M
+# metres (gain against travel cost, as NBVP's gain * exp(-lambda * cost)). It applies wherever utility is read: the
+# policy's and the critic's inputs, the finish check, check_env3d's greedy and fallback. 0 turns it off (Stage 1).
+LEFTOVER_M = float(os.environ.get('LEFTOVER_M', 0))
+# GAMMA 1 with episodes cut at MAX_EPISODE_STEP (not done) let the 3D critic's value fall without bound in loops
+if ENV_DIM == 3:
+    GAMMA = float(os.environ.get('GAMMA_3D', 0.99))
 # start a run from these weights (a checkpoint path; policy, critics and log_alpha; optimizers fresh, episode 0)
 INIT_MODEL = os.environ.get('INIT_MODEL', '')

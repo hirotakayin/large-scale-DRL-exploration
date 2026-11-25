@@ -160,6 +160,35 @@ Follow-up (2026-11-25), why episodes do not finish:
 - Next: rerun Stage 1 with GAMMA 0.99 (GAMMA 1 with episodes cut at 128 steps and not marked done lets the critic's
   value fall without bound in loops: value +5 -> -244). Keep the critic's clip at 20000 so the effect is GAMMA's alone.
 
+## Stage 1b: far small leftovers stop counting (2026-11-25)
+
+Decided: rule A (a utility rule that weighs gain against route length) and D (GAMMA 0.99); not yet a visited rule
+per height band, the fallback in training, or mid-edge scans. Literature review and options:
+https://claude.ai/artifact/2Hiu8cCaa9ttKJxawnbQG6 (private).
+
+- `LEFTOVER_M` (parameter.py, env var): a column's utility counts only above MIN_UTILITY + route / LEFTOVER_M (route
+  from the drone on the lattice, metres), gain against travel cost as NBVP's gain * exp(-lambda * cost). Applied to the
+  column nodes in node_manager3d.py, so it reaches the policy, the critic, the finish check and check_env3d's greedy
+  and fallback; the lattice utility is kept, so a cut column comes back as the drone gets nearer. 0 = off.
+- Telling surface-only leftovers from open space needs the true map, so the rule does not try.
+- `GAMMA_3D` 0.99 (GAMMA stays 1 in 2D). run_train.sh passes both through.
+
+Sweep without training (held-out 20 worlds, Stage 1 checkpoint argmax without fallback, and the greedy explorer;
+outputs `~/rl/stage1b/sweep/` on cerlab22):
+
+| LEFTOVER_M | Stage 1 finished | Stage 1 mean route m | Greedy mean route m | Greedy volume mean / min |
+|---|---|---|---|---|
+| off | 9 / 20 | 877 | 595 | 99.91 / 98.72 % |
+| 20 | 15 / 20 | 685 | 470 | 99.87 / 98.72 % |
+| 12 | 17 / 20 | 591 | 414 | 99.60 / 96.31 % |
+| 8 | 18 / 20 | 483 | 380 | 98.64 / 84.33 % |
+
+- 20 is the strongest value that costs the greedy explorer no volume; 12 and 8 end some worlds early (img_1939
+  96.3 %, img_2333 84.3 %). img_361 (88.6 % volume when it looped in Stage 1) now finishes above 99 % at 20.
+- Still unfinished at 20: img_1262, img_1615 (finished without the rule), img_1957, img_3412 (98.98 %, real volume
+  left), img_3715. The rule removes the far scraps; it does not let the policy see far utility that passes it.
+- Run `stage1b_L20`: as Stage 1 (stock 2D checkpoint, ari3d_train, 16 workers, 6 h) with LEFTOVER_M=20, GAMMA_3D 0.99.
+
 ## Stage 2: a learned height choice
 
 - The graph stays column-sized. The decoder scores (column, height) pairs for the current node's neighbours:
