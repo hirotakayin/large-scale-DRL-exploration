@@ -114,6 +114,30 @@ Loose end: `make_ari3d.py` stops the whole batch when one PNG raises "start not 
 
 Estimate: 0.5 day to build, the run, then evaluation.
 
+## Stage 1 results (2026-11-25)
+
+Run `stage1_25d`: 6 h, 16 workers, episodes 0 to 3939, from the stock 2D checkpoint, 200 ari3d + 20 flat worlds.
+Backup on cerlab22: `~/rl/runs/2026-11-25_stage1_25d/`. Evaluation JSONs: `~/rl/stage1/eval/` (`s1_*`, `stock_*`,
+`greedy_*`, `prune/`), made by `check_env3d.py` (policy argmax, one episode per world). Results page:
+https://claude.ai/artifact/AT59Y1e3kcgTvhBDtD48XN (private).
+
+Held-out set, 20 worlds:
+
+| Planner | Finished | Median m to 90 % / 95 % / 99 % volume | Mean route m |
+|---|---|---|---|
+| Stage 1 | 9 / 20 | 280 / 316 / 441 (99 % reached on 18) | 877 |
+| Stock 2D checkpoint | 4 / 20 | 278 / 311 / 392 (17) | 970 |
+| Greedy column explorer | 20 / 20 | 256 / 283 / 370 (19) | 595 |
+
+- Stage 1 reaches 95 % sooner than stock on 12 of 20 worlds, sooner than greedy on 1 of 20.
+- 8 of the 11 unfinished Stage 1 episodes had seen 99.5 % or more and kept wandering. img_361_s9000 stalls at 88.6 %.
+- Training: success rate 42 -> 91 %, travel per episode 901 -> 678 m, reward flat after about episode 1000.
+- The critic diverges: Q loss 2.3 -> 229, critic gradient norm about 400 -> 114,000, log alpha -3.0 -> -6.0, all still
+  trending at the end.
+
+Before Stage 2: stabilise the critic (gradient clipping, reward scale, slower critic or fixed alpha) and rerun Stage 1;
+look into the finish condition (unfinished episodes at 99.5 %+); beat greedy before learning a height choice.
+
 ## Stage 2: a learned height choice
 
 - The graph stays column-sized. The decoder scores (column, height) pairs for the current node's neighbours:

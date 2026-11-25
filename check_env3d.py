@@ -63,14 +63,15 @@ def run(a):
         fr, steps = [], []
         orig = env.calculate_reward
 
-        curve = [(0.0, float(env.explored_rate), float(getattr(env, 'footprint_rate', env.explored_rate)))]
+        cov = lambda: (float(env.travel_dist), float(env.explored_rate), float(getattr(env, 'footprint_rate', env.explored_rate)),
+                       float(getattr(env, 'surface_rate', 0.0)))
+        curve = [cov()]
 
         def calc(dist, orig=orig):
             r = orig(dist)
             fr.append(r + dist / UPDATING_MAP_SIZE * 5)
             env.evaluate_exploration_rate()
-            curve.append((float(env.travel_dist), float(env.explored_rate),
-                          float(getattr(env, 'footprint_rate', env.explored_rate))))
+            curve.append(cov())
             steps.append(time.time())
             return r
         env.calculate_reward = calc
@@ -95,15 +96,19 @@ def run(a):
         for q in (0.9, 0.95, 0.99):  # distance at which the (footprint, in 3D) explored share first reaches q
             hit = np.nonzero(c[:, 2] >= q)[0]
             rec['dist_%d' % round(q * 100)] = round(float(c[hit[0], 0]), 1) if len(hit) else None
+            hit = np.nonzero(c[:, 1] >= q)[0]  # the same for the explored share (volume in 3D)
+            rec['vol_dist_%d' % round(q * 100)] = round(float(c[hit[0], 0]), 1) if len(hit) else None
         rec['curve'] = [[round(v, 4) for v in row] for row in curve]
         if ENV_DIM == 3:
             rec['footprint'] = round(float(env.footprint_rate), 4)
             rec['height_range'] = [round(float(v), 1) for v in (np.min(env.heights), np.max(env.heights))]
             rec['frontier_cells_seen'] = int(np.sum(env.deltas))
+            rec['surface'] = round(float(env.surface_rate), 4)
+            rec['path'] = [[round(float(v), 2) for v in p] for p in env.positions]
         else:
             rec['frontier_cells_seen'] = None
         results.append(rec)
-        print(json.dumps({k: v for k, v in rec.items() if k != 'curve'}), flush=True)
+        print(json.dumps({k: v for k, v in rec.items() if k not in ('curve', 'path')}), flush=True)
     with open(a.out, 'w') as f:
         json.dump(results, f, indent=1)
 
@@ -130,13 +135,15 @@ def _Env3D(idx, plot, world):
     class Logged(Env3D):
         def step(self, next_position, dist):
             r = super().step(next_position, dist)
+            self.positions.append(self.robot_position.copy())
             self.heights.append(self.robot_position[2])
             self.deltas.append(self.frontier_delta)
             return r
     e = Logged.__new__(Logged)
-    e.heights, e.deltas = [], []
+    e.heights, e.deltas, e.positions = [], [], []
     Logged.__init__(e, idx, plot=plot, world=world)
     e.heights.append(e.robot_position[2])
+    e.positions.append(e.robot_position.copy())
     return e
 
 
@@ -223,6 +230,7 @@ def greedy(a):
         e, ag = Env3D(0, world=world), Agent3D(None)
         ag.update_planning_state(e.belief_info, e.robot_location)
         nm, steps = ag.node_manager, 0
+        curve, path = [(0.0, e.explored_rate, e.footprint_rate, e.surface_rate)], [e.robot_position.tolist()]
         while steps < a.max_steps and ag.utility.sum() > 0:
             d = np.array([nm.dist[nm.nodes_dict.find(c.tolist()).data.kept] for c in ag.node_coords])
             score = np.where(ag.utility > 0, ag.utility / (d + NODE_RESOLUTION), -1)
@@ -230,13 +238,22 @@ def greedy(a):
             e.step(*ag.route_to(ag.node_coords[int(np.argmax(score))]))
             ag.update_planning_state(e.belief_info, e.robot_location)
             steps += 1
+            curve.append((float(e.travel_dist), e.explored_rate, e.footprint_rate, e.surface_rate))
+            path.append(e.robot_position.tolist())
         r = dict(item=os.path.basename(world.rstrip('/')), steps=steps, done=bool(ag.utility.sum() == 0),
                  distance=round(float(e.travel_dist), 1), explored=round(e.explored_rate, 4),
                  footprint=round(e.footprint_rate, 4), seconds=round(time.time() - tic, 1),
                  seconds_per_step=round((time.time() - tic) / max(1, steps), 3), nodes=len(nm.nodes_dict),
-                 dead_frontier_voxels=int(e.belief_info.dead.sum()))
+                 dead_frontier_voxels=int(e.belief_info.dead.sum()), surface=round(e.surface_rate, 4))
+        c = np.array(curve)
+        for q in (0.9, 0.95, 0.99):
+            for key, col in (('dist_%d', 2), ('vol_dist_%d', 1)):
+                hit = np.nonzero(c[:, col] >= q)[0]
+                r[key % round(q * 100)] = round(float(c[hit[0], 0]), 1) if len(hit) else None
+        r['curve'] = [[round(float(v), 4) for v in row] for row in curve]
+        r['path'] = [[round(float(v), 2) for v in p] for p in path]
         out.append(r)
-        print(json.dumps(r), flush=True)
+        print(json.dumps({k: v for k, v in r.items() if k not in ('curve', 'path')}), flush=True)
     with open(a.out, 'w') as f:
         json.dump(out, f, indent=1)
 
