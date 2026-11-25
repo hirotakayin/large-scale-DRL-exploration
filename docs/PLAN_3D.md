@@ -52,7 +52,7 @@ Estimate: 1–1.5 days.
   number of separate free gaps in the column, and the column's free height.
 - Start from the 2D stock checkpoint, with the weights for the new inputs at zero, so training starts from
   ARiADNE's behaviour.
-- Worlds: about 200 accepted ari3d worlds pre-generated on cerlab22 (half scale, `--pixel 0.2`), some flat ones
+- Worlds: about 200 accepted ari3d worlds pre-generated on cerlab22 (`--pixel 0.2`, ARiADNE's own scale), some flat ones
   mixed in. About 20 held-out worlds from PNGs never used in training.
 - Sensor range 16 m (ARiADNE's) for comparability with 2D.
 - Run: 8 workers, 4–6 hours.
