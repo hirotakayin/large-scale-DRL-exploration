@@ -160,6 +160,9 @@ class Agent:
                                       axis=-1) / UPDATING_MAP_SIZE / 2
         node_utility = node_utility / (SENSOR_RANGE * 3.14 // FRONTIER_CELL_SIZE)
         node_inputs = np.concatenate((node_coords, node_utility, node_guidepost), axis=1)
+        extra = self.extra_node_inputs()
+        if extra is not None:
+            node_inputs = np.concatenate((node_inputs, extra), axis=1)
         node_inputs = torch.FloatTensor(node_inputs).unsqueeze(0).to(self.device)
 
         assert node_coords.shape[0] < NODE_PADDING_SIZE, print(node_coords.shape[0], NODE_PADDING_SIZE)
@@ -192,6 +195,9 @@ class Agent:
         edge_padding_mask = padding(edge_padding_mask)
 
         return [node_inputs, node_padding_mask, edge_mask, current_index, current_edge, edge_padding_mask]
+
+    def extra_node_inputs(self):
+        return None  # 3D: agent3d.py
 
     def select_next_waypoint(self, observation):
         _, _, _, _, current_edge, _ = observation

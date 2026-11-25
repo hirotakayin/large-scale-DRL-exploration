@@ -47,12 +47,31 @@ class GroundTruthNodeManager3D(GroundTruthNodeManager):
         self.nodes_dict = ColumnDict()
         lat, cols, cp = ground_truth_columns(self.ground_truth_map_info)
         self.lat = lat
+        gaps, free_height = lat.column_profile(self.ground_truth_map_info.cfree)
+        self.true_profile = {tuple(map(float, lat.col_xy[c])): (int(gaps[c]), float(free_height[c])) for c in cols}
         for c in cols:
             self.nodes_dict.insert(lat.col_xy[c], Node(lat.col_xy[c].copy()))
         for c1, c2 in cp:
             k1, k2 = tuple(map(float, lat.col_xy[c1])), tuple(map(float, lat.col_xy[c2]))
             self.nodes_dict.find(k1).data.neighbor_set.add(k2)
             self.nodes_dict.find(k2).data.neighbor_set.add(k1)
+
+    def extra_node_inputs(self, node_coords, explored_sign):
+        """The actor's 3 stage-1 inputs for explored columns; for the rest, no height offset and the true gaps and
+        free height (the critic may know the true map)."""
+        nm = self.node_manager
+        z = nm.lat.pos[nm.here, 2]
+        out = []
+        for c in node_coords:
+            key = (float(c[0]), float(c[1]))
+            item = nm.nodes_dict.find(key)
+            if item is not None:
+                n = item.data
+                out.append(((n.height - z) / HEIGHT_NORM_3D, n.gaps / GAPS_NORM_3D, n.free_height / HEIGHT_NORM_3D))
+            else:
+                g, h = self.true_profile[key]
+                out.append((0.0, g / GAPS_NORM_3D, h / HEIGHT_NORM_3D))
+        return np.array(out).reshape(-1, NODE_INPUTS_3D)
 
     def plot_ground_truth_env(self, robot_location):
         plt.subplot(1, 3, 3)

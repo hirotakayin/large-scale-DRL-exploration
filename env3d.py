@@ -162,6 +162,8 @@ class Env3D:
         z = np.load(os.path.join(self.world, 'world.npz'))
         self.ground_truth = z['occupied']
         self.explorable = z['explorable']
+        self.surface = z['surface']  # occupied voxels next to explorable space
+        self.surface_total = max(1, self.surface.sum())
         self.cell_size = float(z['resolution'])
         assert abs(self.cell_size - CELL_SIZE) < 1e-9, 'world resolution %s != CELL_SIZE' % self.cell_size
         self.start = z['start'].astype(float)
@@ -181,6 +183,7 @@ class Env3D:
         self.travel_dist = 0
         self.explored_rate = 0
         self.footprint_rate = 0
+        self.surface_rate = 0
         self.scan()
         self.global_frontiers = self.belief_info.all_frontier_keys
         self.evaluate_exploration_rate()
@@ -191,7 +194,13 @@ class Env3D:
 
     @staticmethod
     def pick_world(episode_index):
-        worlds = sorted(d for d in os.listdir(WORLDS_3D) if os.path.exists(os.path.join(WORLDS_3D, d, 'world.npz')))
+        """World episode_index mod n of WORLDS_3D: the sub-folders listed in its worlds.txt (one per line), else
+        every sub-folder with a world.npz, sorted."""
+        listing = os.path.join(WORLDS_3D, 'worlds.txt')
+        if os.path.exists(listing):
+            worlds = [l.strip() for l in open(listing) if l.strip() and not l.startswith('#')]
+        else:
+            worlds = sorted(d for d in os.listdir(WORLDS_3D) if os.path.exists(os.path.join(WORLDS_3D, d, 'world.npz')))
         assert worlds, 'no worlds in %s' % WORLDS_3D
         return os.path.join(WORLDS_3D, worlds[episode_index % len(worlds)])
 
@@ -231,6 +240,7 @@ class Env3D:
         free = self.belief_info.map == FREE3
         self.explored_rate = float((free & self.explorable).sum() / self.explorable_total)
         self.footprint_rate = float((free.any(axis=0) & self.footprint).sum() / self.footprint_total)
+        self.surface_rate = float(((self.belief_info.map == OCC3) & self.surface).sum() / self.surface_total)
 
     def step(self, next_position, dist):
         """Fly to next_position (metres, a lattice node) along a route of length dist, scan, return the reward."""

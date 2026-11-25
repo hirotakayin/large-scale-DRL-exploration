@@ -80,6 +80,9 @@ class GroundTruthNodeManager:
         #node_coords = node_coords / UPDATING_MAP_SIZE / 3
         node_utility = node_utility / (SENSOR_RANGE * 3.14 // FRONTIER_CELL_SIZE)
         node_inputs = np.concatenate((node_coords, node_utility, node_guidepost, node_guidepost2), axis=1)
+        extra = self.extra_node_inputs(all_node_coords, explored_sign)
+        if extra is not None:
+            node_inputs = np.concatenate((node_inputs, extra), axis=1)
         node_inputs = torch.FloatTensor(node_inputs).unsqueeze(0).to(self.device)
 
         assert node_coords.shape[0] < NODE_PADDING_SIZE, print(node_coords.shape[0], NODE_PADDING_SIZE)
@@ -112,6 +115,9 @@ class GroundTruthNodeManager:
         current_index = torch.tensor([current_index]).reshape(1, 1, 1).to(self.device)
 
         return [node_inputs, node_padding_mask, edge_mask, current_index, current_edge, edge_padding_mask]
+
+    def extra_node_inputs(self, node_coords, explored_sign):
+        return None  # 3D: ground_truth_node_manager3d.py
 
     def add_node_to_dict(self, coords):
         key = (coords[0], coords[1])

@@ -36,10 +36,10 @@ MINIMUM_BUFFER_SIZE = 2000
 BATCH_SIZE = 128
 LR = 1e-5
 GAMMA = 1
-NUM_META_AGENT = 16  # how many threads does your CPU have
+NUM_META_AGENT = int(os.environ.get('NUM_META_AGENT', 16))  # how many threads does your CPU have
 
 # network parameters
-NODE_INPUT_DIM = 4
+NODE_INPUT_DIM = 4  # 3D adds NODE_INPUTS_3D (below)
 EMBEDDING_DIM = 128
 
 # Graph parameters
@@ -70,3 +70,15 @@ DEAD_FRONTIER_VIEWS = 2  # a frontier voxel still there after scans from this ma
 # 3D / 2D was 5.0-5.8 per node for utility and 3.6-4.0 for the frontier reward, on 4 maps.
 UTILITY_SCALE_3D = 0.18  # the policy's utility input (and the critic's)
 REWARD_SCALE_3D = 0.26  # frontier cells observed, in the reward
+
+# stage 1 (docs/PLAN_3D.md): 3 more node inputs in 3D, appended after the 2D ones (x, y, utility, visited):
+# kept height - drone height, free gaps in the column, the column's free height (heights / HEIGHT_NORM_3D,
+# gaps / GAPS_NORM_3D). The critic gets the same 3 after its 2D inputs. A 2D checkpoint loads with zero weights
+# for them (model.load_widened), so it starts out acting exactly as in 2D.
+NODE_INPUTS_3D = 3
+HEIGHT_NORM_3D = 20.0  # meter
+GAPS_NORM_3D = 4.0
+if ENV_DIM == 3:
+    NODE_INPUT_DIM += NODE_INPUTS_3D
+# start a run from these weights (a checkpoint path; policy, critics and log_alpha; optimizers fresh, episode 0)
+INIT_MODEL = os.environ.get('INIT_MODEL', '')

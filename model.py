@@ -315,3 +315,17 @@ class QNet(nn.Module):
                                  enhanced_node_feature, current_edge, edge_padding_mask)
 
         return q_values
+
+
+def load_widened(net, state_dict):
+    """Load state_dict into net; an initial_embedding with fewer inputs than net's (a 2D checkpoint into a 3D net)
+    fills the first columns and leaves the new inputs' weights at zero."""
+    own = net.state_dict()
+    for k, v in state_dict.items():
+        if k in own and own[k].shape != v.shape:
+            assert k.endswith('initial_embedding.weight') and own[k].shape[0] == v.shape[0] and own[k].shape[1] > v.shape[1], \
+                (k, own[k].shape, v.shape)
+            w = torch.zeros_like(own[k])
+            w[:, :v.shape[1]] = v
+            state_dict = dict(state_dict, **{k: w})
+    net.load_state_dict(state_dict)

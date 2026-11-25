@@ -7,7 +7,7 @@ import os
 import numpy as np
 import random
 
-from model import PolicyNet, QNet
+from model import PolicyNet, QNet, load_widened
 from runner import RLRunner
 from parameter import *
 
@@ -69,6 +69,21 @@ def main():
         print(log_alpha, log_alpha.requires_grad)
         print(global_policy_optimizer.state_dict()['param_groups'][0]['lr'])
 
+    # start a new run from another run's weights (stage 1: the 2D checkpoint into the 3D networks)
+    if INIT_MODEL and not LOAD_MODEL:
+        print('Starting from', INIT_MODEL)
+        checkpoint = torch.load(INIT_MODEL, map_location=device, weights_only=False)
+        load_widened(global_policy_net, checkpoint['policy_model'])
+        load_widened(global_q_net1, checkpoint['q_net1_model'])
+        load_widened(global_q_net2, checkpoint['q_net2_model'])
+        log_alpha = checkpoint['log_alpha'].detach().clone().to(device)
+        log_alpha.requires_grad = True
+        log_alpha_optimizer = optim.Adam([log_alpha], lr=1e-4)
+        global_policy_optimizer = optim.Adam(global_policy_net.parameters(), lr=LR)
+        global_q_net1_optimizer = optim.Adam(global_q_net1.parameters(), lr=LR)
+        global_q_net2_optimizer = optim.Adam(global_q_net2.parameters(), lr=LR)
+        print('log_alpha', log_alpha.item())
+
     global_target_q_net1.load_state_dict(global_q_net1.state_dict())
     global_target_q_net2.load_state_dict(global_q_net2.state_dict())
     global_target_q_net1.eval()
@@ -101,6 +116,8 @@ def main():
 
     # initialize metric collector
     metric_name = ['travel_dist', 'success_rate', 'explored_rate']
+    if ENV_DIM == 3:
+        metric_name += ['footprint_rate', 'surface_rate']
     training_data = []
     perf_metrics = {}
     for n in metric_name:
@@ -319,7 +336,11 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
 
     tensorboard_data = np.array(tensorboard_data)
     tensorboard_data = list(np.nanmean(tensorboard_data, axis=0))
-    reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss, travel_dist, success_rate, explored_rate = tensorboard_data
+    reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss, travel_dist, success_rate, explored_rate = tensorboard_data[:12]
+    if len(tensorboard_data) > 12:  # 3D
+        footprint_rate, surface_rate = tensorboard_data[12:14]
+        writer.add_scalar(tag='Perf/Footprint Rate', scalar_value=footprint_rate, global_step=curr_episode)
+        writer.add_scalar(tag='Perf/Surface Rate', scalar_value=surface_rate, global_step=curr_episode)
 
     writer.add_scalar(tag='Losses/Value', scalar_value=value, global_step=curr_episode)
     writer.add_scalar(tag='Losses/Policy Loss', scalar_value=policy_loss, global_step=curr_episode)

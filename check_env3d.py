@@ -33,10 +33,10 @@ def run(a):
     import torch
     from parameter import ENV_DIM, UPDATING_MAP_SIZE, NODE_INPUT_DIM, EMBEDDING_DIM
     import worker as W
-    from model import PolicyNet
+    from model import PolicyNet, load_widened
 
     net = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
-    net.load_state_dict(torch.load(a.ckpt, map_location='cpu', weights_only=False)['policy_model'])
+    load_widened(net, torch.load(a.ckpt, map_location='cpu', weights_only=False)['policy_model'])
     net.eval()
     torch.manual_seed(0)
     np.random.seed(0)
@@ -143,13 +143,13 @@ def _Env3D(idx, plot, world):
 def replay(a):
     import torch
     from parameter import NODE_INPUT_DIM, EMBEDDING_DIM, UPDATING_MAP_SIZE, UTILITY_SCALE_3D, REWARD_SCALE_3D
-    from model import PolicyNet
+    from model import PolicyNet, load_widened
     from agent import Agent
     from agent3d import Agent3D
     from env3d import Env3D
 
     net = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
-    net.load_state_dict(torch.load(a.ckpt, map_location='cpu', weights_only=False)['policy_model'])
+    load_widened(net, torch.load(a.ckpt, map_location='cpu', weights_only=False)['policy_model'])
     net.eval()
     out = []
     for png, world in zip(a.replay[::2], a.replay[1::2]):

@@ -58,6 +58,9 @@ class ColumnNode:
         self.raw_utility = 0  # 3D frontier count of the kept node
         self.visited = 0
         self.kept = -1  # lattice index of the kept node
+        self.height = 0.0  # metres, the kept node's z
+        self.gaps = 0  # separate runs of free configuration space in the column (belief)
+        self.free_height = 0.0  # metres of free configuration space in the column (belief)
         self.neighbor_set = {(coords[0], coords[1])}
 
 
@@ -116,6 +119,13 @@ class Lattice:
 
     def valid(self, cfree):
         return cfree[self.vox[:, 2], self.vox[:, 1], self.vox[:, 0]]
+
+    def column_profile(self, cfree):
+        """Per column (through its centre voxel): separate runs of cfree, and their total height in metres."""
+        c = cfree[:, self.vox[:self.ncol, 1], self.vox[:self.ncol, 0]]  # (nz, ncol)
+        starts = c.copy()
+        starts[1:] &= ~c[:-1]
+        return starts.sum(axis=0), c.sum(axis=0) * self.res
 
     def segments_free(self, idx, cfree):
         a, b = self.pairs[idx, 0], self.pairs[idx, 1]
@@ -211,6 +221,7 @@ class NodeManager3D:
         ca, cb = lat.col[ea[rm]], lat.col[eb[rm]]
         x = ca != cb
         cp = np.unique(np.sort(np.stack([ca[x], cb[x]], 1), axis=1), axis=0)
+        gaps, free_height = lat.column_profile(map_info.cfree)
         for c in cols[first]:
             key = (float(lat.col_xy[c, 0]), float(lat.col_xy[c, 1]))
             item = self.nodes_dict.find(key)
@@ -221,6 +232,8 @@ class NodeManager3D:
             node.kept = int(self.kept[c])
             node.raw_utility = int(self.util[node.kept])
             node.utility = node.raw_utility * UTILITY_SCALE_3D
+            node.height = float(lat.pos[node.kept, 2])
+            node.gaps, node.free_height = int(gaps[c]), float(free_height[c])
             node.neighbor_set = {key}
         self.nodes_dict.find(tuple(lat.col_xy[lat.col[here]])).data.visited = 1
         for c1, c2 in cp:

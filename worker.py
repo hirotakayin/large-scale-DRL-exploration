@@ -85,6 +85,7 @@ class Worker:
         self.perf_metrics['success_rate'] = done
         if ENV_DIM == 3:
             self.perf_metrics['footprint_rate'] = self.env.footprint_rate
+            self.perf_metrics['surface_rate'] = self.env.surface_rate
 
         # save gif
         if self.save_image:

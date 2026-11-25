@@ -22,6 +22,13 @@ class Agent3D(Agent):
         self.node_coords, self.utility, self.guidepost, self.adjacent_matrix, self.current_index, self.neighbor_indices = \
             self.update_observation()
 
+    def extra_node_inputs(self):
+        """Stage-1 inputs per node: kept height - drone height, free gaps, free height (parameter.py)."""
+        z = self.map_info.robot_position[2]
+        nodes = [self.node_manager.nodes_dict.find(c.tolist()).data for c in self.node_coords]
+        return np.array([[(n.height - z) / HEIGHT_NORM_3D, n.gaps / GAPS_NORM_3D, n.free_height / HEIGHT_NORM_3D]
+                         for n in nodes]).reshape(-1, NODE_INPUTS_3D)
+
     def route_to(self, next_location):
         position, dist, _ = self.node_manager.route_to(next_location)
         return position, dist

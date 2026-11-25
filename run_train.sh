@@ -9,6 +9,7 @@
 # Build the image first:  docker build -t ariadne-train:v1 .
 # 3D (docs/PLAN_3D.md): ENV_DIM=3 WORLDS_3D=~/rl/worlds/<set> ./run_train.sh <run_name> [time_limit]
 #   mounts the worlds folder and voxel_world (VOXEL_WORLD, default ~/rl/CERLAB-UAV-Autonomy/voxel_world) read-only
+# INIT_MODEL=<checkpoint.pth> starts from those weights (a 2D one widened for 3D); NUM_META_AGENT=<n> workers
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 name=${1:?usage: run_train.sh <run_name> [time_limit]}
@@ -28,7 +29,12 @@ if [ "$dim" = 3 ]; then
     [ -d "$worlds" ] && [ -d "$voxel/src/voxel_world" ] || { echo "missing $worlds or $voxel/src/voxel_world" >&2; exit 1; }
     extra+=(-e WORLDS_3D=/worlds -e PYTHONPATH=/voxel_world/src -v "$worlds":/worlds:ro -v "$voxel":/voxel_world:ro)
 fi
-echo "run $name, image $image, limit $limit, ${dim}D${worlds:+, worlds $worlds}, log train_$name.log"
+if [ -n "${INIT_MODEL:-}" ]; then  # start from these weights (a checkpoint.pth), mounted read-only
+    init=$(readlink -f "$INIT_MODEL"); [ -f "$init" ] || { echo "missing $init" >&2; exit 1; }
+    extra+=(-e INIT_MODEL=/init/checkpoint.pth -v "$init":/init/checkpoint.pth:ro)
+fi
+[ -n "${NUM_META_AGENT:-}" ] && extra+=(-e NUM_META_AGENT="$NUM_META_AGENT")
+echo "run $name, image $image, limit $limit, ${dim}D${worlds:+, worlds $worlds}${init:+, from $init}, log train_$name.log"
 timeout -s INT "$limit" docker run --rm --init --gpus all --shm-size=16g --name ariadne-train \
     --user "$(id -u):$(id -g)" -e HOME=/tmp/home -e FOLDER_NAME="$name" "${extra[@]}" \
     -v "$PWD":/workspace -w /workspace \
