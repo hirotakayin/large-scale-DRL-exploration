@@ -8,7 +8,7 @@ hirotakayin/CERLAB-UAV-Autonomy (`voxel_world/`: worlds, simulator, studies).
 
 | Piece | Where | State |
 |---|---|---|
-| 3D training worlds from ARiADNE's map PNGs | `voxel_world/scripts/make_ari3d.py`, module `ari3d.py` | done. Terraced levels, pits, low and lipped islands, hurdle/lintel gates; no single height reaches more than 60% of a world; every opening at least 3.2 m, checked with 0.5 m clearance; `accepted` flag in stats.json. Deterministic from (PNG, seed). Runs in this repo's Docker image. Cloned on cerlab22 at ~/rl/CERLAB-UAV-Autonomy |
+| 3D training worlds from ARiADNE's map PNGs | `voxel_world/scripts/make_ari3d.py`, module `ari3d.py` | done. Terraced levels, staggered levels joined by shafts, split corridors (over/under loops), pits, low and lipped islands, hurdle/lintel gates; no single height reaches more than 60% of a world; every opening at least 3.2 m, checked with 0.5 m clearance; `accepted` flag in stats.json. Deterministic from (PNG, seed). Runs in this repo's Docker image. Cloned on cerlab22 at ~/rl/CERLAB-UAV-Autonomy |
 | Generating and previewing worlds from the GUI | hirotakayin/cerlab-uav-gui, Training tab | done. Calls make_ari3d.py and make_courses.py, shows previews and stats, and starts/stops training here over SSH |
 | Evaluation courses (open rooms, obstacles at every height) | `voxel_world/scripts/make_courses.py --layout room`, test seeds 0–99 | done |
 | A 3D exploration simulator (teleport between nodes, tilted Mid-360 band, 3D frontiers, utility, graphs) | `voxel_world/scripts/prune_study.py` (class `Sim`) | prototype, used for the pruning study, not wired into training |
@@ -74,7 +74,7 @@ Estimate: 0.5 day to build, the run, then evaluation.
 
 ## After that
 
-Full-scale maps (`--pixel 0.4`), the 20 m Mid-360 range, evaluation on the room courses and on the Gazebo
+Larger maps (`--pixel 0.4`, double ARiADNE's scale), the 20 m Mid-360 range, evaluation on the room courses and on the Gazebo
 excavation worlds, and a 3D version of the ROS planner side (ARiADNE-ROS-Planner, branch 3d-learning).
 
 ## Risks
