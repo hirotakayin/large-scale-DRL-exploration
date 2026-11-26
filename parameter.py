@@ -91,3 +91,16 @@ if ENV_DIM == 3:
     GAMMA = float(os.environ.get('GAMMA_3D', 0.99))
 # start a run from these weights (a checkpoint path; policy, critics and log_alpha; optimizers fresh, episode 0)
 INIT_MODEL = os.environ.get('INIT_MODEL', '')
+# stage 1c (docs/PLAN_3D.md): shorter paths. Stage 1b flew ~25 % further than the greedy explorer on held-out worlds and
+# its training distance stayed flat over 4096 episodes. The frontier reward sums to about the same on any path, so
+# under a per-decision discount it mostly pays for clearing big frontiers early.
+# DISCOUNT_M > 0: discount each transition by GAMMA ** (route metres / DISCOUNT_M) instead of GAMMA (0 = per decision)
+DISCOUNT_M = float(os.environ.get('DISCOUNT_M', 0))
+# DIST_W multiplies the per-metre distance penalty in the 3D reward (1 = as before)
+DIST_W = float(os.environ.get('DIST_W', 1))
+# GREEDY_BONUS > 0: at the finish add GREEDY_BONUS * (greedy m - own m) / greedy m, greedy m read from GREEDY_REF
+# ({world folder: metres}, a file in WORLDS_3D) for the episode's world; worlds missing from it get no bonus
+GREEDY_BONUS = float(os.environ.get('GREEDY_BONUS', 0))
+GREEDY_REF = os.environ.get('GREEDY_REF', 'greedy_L20.json')
+# replay buffer slots: 27 as in ARiADNE, plus the transition's discount
+BUFFER_SLOTS = 28

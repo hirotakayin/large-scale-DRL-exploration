@@ -228,7 +228,7 @@ class Env3D:
         self.belief_info.looked_from(p)
 
     def calculate_reward(self, dist):
-        reward = -dist / UPDATING_MAP_SIZE * 5
+        reward = -dist / UPDATING_MAP_SIZE * 5 * DIST_W
         new = self.belief_info.all_frontier_keys
         delta_num = len(np.setdiff1d(self.global_frontiers, new, assume_unique=True))
         self.frontier_delta = delta_num

@@ -15,6 +15,20 @@ if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
 
 
+_GREEDY = None
+
+
+def greedy_reference():
+    global _GREEDY
+    if _GREEDY is None:
+        import json
+        path = os.path.join(WORLDS_3D, GREEDY_REF)
+        _GREEDY = json.load(open(path)) if os.path.exists(path) else {}
+        if GREEDY_BONUS > 0:
+            print('greedy reference', path, len(_GREEDY), 'worlds', flush=True)
+    return _GREEDY
+
+
 class Worker:
     def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False):
         self.meta_agent_id = meta_agent_id
@@ -30,7 +44,7 @@ class Worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(27):
+        for i in range(BUFFER_SLOTS):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -55,16 +69,21 @@ class Worker:
             assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location, self.robot.location, node.data.neighbor_set)
             assert next_location[0] != self.robot.location[0] or next_location[1] != self.robot.location[1]
 
+            travel_before = self.env.travel_dist
             if ENV_DIM == 3:
                 reward = self.env.step(*self.robot.route_to(next_location))
             else:
                 reward = self.env.step(next_location)
+            hop = float(self.env.travel_dist - travel_before)
+            discount = GAMMA ** (hop / DISCOUNT_M) if DISCOUNT_M > 0 else GAMMA
 
             self.robot.update_planning_state(self.env.belief_info, self.env.robot_location)
             if self.robot.utility.sum() == 0:
                 done = True
                 reward += 20
+                reward += self.greedy_bonus()
             self.save_reward_done(reward, done)
+            self.episode_buffer[27] += torch.FloatTensor([discount]).reshape(1, 1, 1).to(self.device)
 
             observation = self.robot.get_observation()
             ground_truth_observation = self.ground_truth_node_manager.get_ground_truth_observation(
@@ -90,6 +109,18 @@ class Worker:
         # save gif
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
+
+    def greedy_bonus(self):
+        """GREEDY_BONUS * (greedy m - own m) / greedy m on this world (stage 1c), 0 when off or unknown."""
+        if GREEDY_BONUS <= 0 or ENV_DIM != 3:
+            return 0.0
+        ref = greedy_reference()
+        g = ref.get(os.path.basename(str(self.env.world).rstrip('/')))
+        if not g:
+            return 0.0
+        b = GREEDY_BONUS * (g - float(self.env.travel_dist)) / g
+        self.perf_metrics['greedy_ratio'] = float(self.env.travel_dist) / g
+        return b
 
     def save_observation(self, observation, ground_truth_observation):
         node_inputs, node_padding_mask, edge_mask, current_index, current_edge, edge_padding_mask = observation

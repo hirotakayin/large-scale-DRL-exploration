@@ -125,7 +125,7 @@ def main():
 
     # initialize training replay buffer
     experience_buffer = []
-    for i in range(27):
+    for i in range(BUFFER_SLOTS):
         experience_buffer.append([])
 
     # collect data from worker and do training
@@ -199,6 +199,7 @@ def main():
                     critic_next_current_index = torch.stack(rollouts[24]).to(device)
                     critic_next_current_edge = torch.stack(rollouts[25]).to(device)
                     critic_next_edge_padding_mask = torch.stack(rollouts[26]).to(device)
+                    discount = torch.stack(rollouts[27]).to(device)  # GAMMA, or GAMMA ** (m / DISCOUNT_M)
 
                     observation = [node_inputs, node_padding_mask, edge_mask, current_index,
                                    current_edge, edge_padding_mask]
@@ -238,7 +239,7 @@ def main():
                         value_prime = torch.sum(
                             next_logp.unsqueeze(2).exp() * (next_q_values - log_alpha.exp() * next_logp.unsqueeze(2)),
                             dim=1).unsqueeze(1)
-                        target_q = reward + GAMMA * (1 - done) * value_prime
+                        target_q = reward + discount * (1 - done) * value_prime
 
                     mse_loss = nn.MSELoss()
 
