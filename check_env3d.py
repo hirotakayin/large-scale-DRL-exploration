@@ -295,7 +295,8 @@ def greedy(a):
                  distance=round(float(e.travel_dist), 1), explored=round(e.explored_rate, 4),
                  footprint=round(e.footprint_rate, 4), seconds=round(time.time() - tic, 1),
                  seconds_per_step=round((time.time() - tic) / max(1, steps), 3), nodes=len(nm.nodes_dict),
-                 dead_frontier_voxels=int(e.belief_info.dead.sum()), surface=round(e.surface_rate, 4))
+                 dead_frontier_voxels=int(e.belief_info.dead.sum()), surface=round(e.surface_rate, 4),
+                 leave_cells=e.leave_cells, late_cells=e.late_cells, late_hops=e.late_hops, late_m=round(e.late_m, 1))
         c = np.array(curve)
         for q in (0.9, 0.95, 0.99):
             for key, col in (('dist_%d', 2), ('vol_dist_%d', 1)):
