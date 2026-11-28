@@ -116,6 +116,8 @@ def run(a):
             rec['height_range'] = [round(float(v), 1) for v in (np.min(env.heights), np.max(env.heights))]
             rec['frontier_cells_seen'] = int(np.sum(env.deltas))
             rec['surface'] = round(float(env.surface_rate), 4)
+            rec['leave_cells'], rec['late_cells'], rec['late_hops'] = env.leave_cells, env.late_cells, env.late_hops
+            rec['late_m'] = round(env.late_m, 1)
             rec['path'] = [[round(float(v), 2) for v in p] for p in env.positions]
         else:
             rec['frontier_cells_seen'] = None

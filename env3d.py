@@ -184,6 +184,10 @@ class Env3D:
         self.explored_rate = 0
         self.footprint_rate = 0
         self.surface_rate = 0
+        self.left = {}                 # left-behind frontier key -> hop it was left at (parameter.py LEAVE_W)
+        self.leave_delta = 0
+        self.leave_cells = self.late_cells = self.late_hops = self.hops = 0
+        self.late_m = 0.0
         self.scan()
         self.global_frontiers = self.belief_info.all_frontier_keys
         self.evaluate_exploration_rate()
@@ -232,9 +236,37 @@ class Env3D:
         new = self.belief_info.all_frontier_keys
         delta_num = len(np.setdiff1d(self.global_frontiers, new, assume_unique=True))
         self.frontier_delta = delta_num
-        reward += delta_num * REWARD_SCALE_3D / (SENSOR_RANGE * 3.14 // FRONTIER_CELL_SIZE)
+        per_cell = REWARD_SCALE_3D / (SENSOR_RANGE * 3.14 // FRONTIER_CELL_SIZE)
+        reward += delta_num * per_cell
+        if LEAVE_W > 0:
+            reward -= LEAVE_W * self.leave_delta * per_cell
         self.global_frontiers = new
         return reward
+
+    def track_left_behind(self, prev, dist):
+        """After a hop from prev (metres) of dist metres and its scan: count the frontier left behind (parameter.py
+        LEAVE_W), and the earlier left-behind cells this hop resolved (a cell that turned dead is not resolved)."""
+        bi = self.belief_info
+        if self.left:
+            lk = np.fromiter(self.left.keys(), np.int64, len(self.left))
+            gone = lk[~np.isin(lk, bi.all_frontier_keys)]
+            if len(gone):
+                self.late_cells += len(gone)
+                self.late_hops += 1
+                self.late_m += float(dist)
+                for k in gone.tolist():
+                    del self.left[k]
+        self.leave_delta = 0
+        pts = bi.frontier_pts
+        if len(pts):
+            was = np.linalg.norm(pts - prev, axis=1) <= LEAVE_R
+            now = np.linalg.norm(pts - self.robot_position, axis=1) > LEAVE_R
+            ab = bi.frontier_keys[was & now]
+            self.leave_delta = len(ab)
+            self.leave_cells += len(ab)
+            for k in ab.tolist():
+                self.left.setdefault(k, self.hops)
+        self.hops += 1
 
     def evaluate_exploration_rate(self):
         free = self.belief_info.map == FREE3
@@ -244,9 +276,11 @@ class Env3D:
 
     def step(self, next_position, dist):
         """Fly to next_position (metres, a lattice node) along a route of length dist, scan, return the reward."""
+        prev = self.robot_position.copy()
         self.robot_position = np.asarray(next_position, float).copy()
         self.robot_location = self.belief_info.local_xy(self.robot_position)
         self.scan()
+        self.track_left_behind(prev, dist)
         self.travel_dist += dist
         self.evaluate_exploration_rate()
         if self.plot:

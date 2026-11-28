@@ -105,6 +105,9 @@ class Worker:
         if ENV_DIM == 3:
             self.perf_metrics['footprint_rate'] = self.env.footprint_rate
             self.perf_metrics['surface_rate'] = self.env.surface_rate
+            self.perf_metrics['leave_cells'] = self.env.leave_cells
+            self.perf_metrics['late_cells'] = self.env.late_cells
+            self.perf_metrics['late_m'] = self.env.late_m
 
         # save gif
         if self.save_image:

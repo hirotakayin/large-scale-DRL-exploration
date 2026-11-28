@@ -117,7 +117,7 @@ def main():
     # initialize metric collector
     metric_name = ['travel_dist', 'success_rate', 'explored_rate']
     if ENV_DIM == 3:
-        metric_name += ['footprint_rate', 'surface_rate']
+        metric_name += ['footprint_rate', 'surface_rate', 'leave_cells', 'late_cells', 'late_m']
     training_data = []
     perf_metrics = {}
     for n in metric_name:
@@ -342,6 +342,11 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
         footprint_rate, surface_rate = tensorboard_data[12:14]
         writer.add_scalar(tag='Perf/Footprint Rate', scalar_value=footprint_rate, global_step=curr_episode)
         writer.add_scalar(tag='Perf/Surface Rate', scalar_value=surface_rate, global_step=curr_episode)
+        if len(tensorboard_data) >= 17:  # left-behind frontier (parameter.py LEAVE_W)
+            leave_cells, late_cells, late_m = tensorboard_data[14:17]
+            writer.add_scalar(tag='Backtrack/Cells Left Behind', scalar_value=leave_cells, global_step=curr_episode)
+            writer.add_scalar(tag='Backtrack/Cells Resolved Late', scalar_value=late_cells, global_step=curr_episode)
+            writer.add_scalar(tag='Backtrack/Late Hop Metres', scalar_value=late_m, global_step=curr_episode)
 
     writer.add_scalar(tag='Losses/Value', scalar_value=value, global_step=curr_episode)
     writer.add_scalar(tag='Losses/Policy Loss', scalar_value=policy_loss, global_step=curr_episode)

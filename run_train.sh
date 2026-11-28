@@ -11,7 +11,8 @@
 #   mounts the worlds folder and voxel_world (VOXEL_WORLD, default ~/rl/CERLAB-UAV-Autonomy/voxel_world) read-only
 # INIT_MODEL=<checkpoint.pth> starts from those weights (a 2D one widened for 3D); NUM_META_AGENT=<n> workers
 # LEFTOVER_M=<m> and GAMMA_3D=<g> override parameter.py (3D: far small leftovers rule, discount; 0 / 0.99 default)
-# DISCOUNT_M, DIST_W, GREEDY_BONUS, GREEDY_REF: stage 1c shorter-path settings (parameter.py); CONTAINER=<name>
+# DISCOUNT_M, DIST_W, GREEDY_BONUS, GREEDY_REF: stage 1c shorter-path settings; LEAVE_W, LEAVE_R: left-behind
+# frontier penalty (parameter.py); CONTAINER=<name>
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 name=${1:?usage: run_train.sh <run_name> [time_limit]}
@@ -39,7 +40,7 @@ fi
 [ -n "${NUM_META_AGENT:-}" ] && extra+=(-e NUM_META_AGENT="$NUM_META_AGENT")
 [ -n "${LEFTOVER_M:-}" ] && extra+=(-e LEFTOVER_M="$LEFTOVER_M")
 [ -n "${GAMMA_3D:-}" ] && extra+=(-e GAMMA_3D="$GAMMA_3D")
-for v in DISCOUNT_M DIST_W GREEDY_BONUS GREEDY_REF; do [ -n "${!v:-}" ] && extra+=(-e "$v=${!v}"); done
+for v in DISCOUNT_M DIST_W GREEDY_BONUS GREEDY_REF LEAVE_W LEAVE_R; do [ -n "${!v:-}" ] && extra+=(-e "$v=${!v}"); done
 echo "run $name, image $image, limit $limit, ${dim}D${worlds:+, worlds $worlds}${init:+, from $init}, log train_$name.log"
 timeout -s INT "$limit" docker run --rm --init --gpus all --shm-size=16g --name "$container" \
     --user "$(id -u):$(id -g)" -e HOME=/tmp/home -e FOLDER_NAME="$name" "${extra[@]}" \

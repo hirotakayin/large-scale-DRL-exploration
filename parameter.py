@@ -101,6 +101,13 @@ DIST_W = float(os.environ.get('DIST_W', 1))
 # GREEDY_BONUS > 0: at the finish add GREEDY_BONUS * (greedy m - own m) / greedy m, greedy m read from GREEDY_REF
 # ({world folder: metres}, a file in WORLDS_3D) for the episode's world; worlds missing from it get no bonus
 GREEDY_BONUS = float(os.environ.get('GREEDY_BONUS', 0))
+# Left-behind frontier (stage 2, 3D). After each hop, live frontier cells within LEAVE_R m of where the drone was and
+# more than LEAVE_R m from where it is now are "left behind". Bookkeeping runs always (episode metrics leave_cells:
+# cells left behind; late_cells: of those, resolved later, i.e. the drone came back for them; late_hops / late_m: the
+# hops that resolved them and their metres). LEAVE_W > 0 makes leaving cost reward: each cell left behind costs
+# LEAVE_W times what seeing a frontier cell pays (LEAVE_W 0 = the reward as before).
+LEAVE_W = float(os.environ.get('LEAVE_W', 0))
+LEAVE_R = float(os.environ.get('LEAVE_R', 8))
 GREEDY_REF = os.environ.get('GREEDY_REF', 'greedy_L20.json')
 # replay buffer slots: 27 as in ARiADNE, plus the transition's discount
 BUFFER_SLOTS = 28
